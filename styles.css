@@ -168,3 +168,8 @@
 .footer-word .footer-lava::after{content:"";position:absolute;left:4%;right:4%;bottom:-8px;height:2px;background:linear-gradient(90deg,transparent,#00a86b 25%,#d8fff1 50%,#00a86b 75%,transparent);box-shadow:0 0 12px rgba(25,227,154,.68);opacity:.7;transform:scaleX(.76);transform-origin:center}
 @media(max-width:700px){.motion-ready .scroll-reveal{transform:translate3d(0,24px,0) scale(.992);transition-duration:.62s,.72s}.parallax-media{transform:translate3d(0,var(--parallax-y,0),0) scale(1.06)}.footer-word .footer-lava::after{bottom:-5px}}
 @media(prefers-reduced-motion:reduce){.scroll-progress{display:none}.motion-ready .scroll-reveal{opacity:1;transform:none;transition:none}.parallax-media{transform:none;will-change:auto}.footer-word .footer-lava::after{box-shadow:none}}
+
+
+/* Fine-pointer brand trail. The canvas is inert and paints only while letters are fading. */
+.cursor-letter-canvas{position:fixed;z-index:90;inset:0;display:block;pointer-events:none;contain:strict;mix-blend-mode:screen}
+@media(pointer:coarse),(prefers-reduced-motion:reduce){.cursor-letter-canvas{display:none}}
