@@ -8,6 +8,7 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "devDependencies": {
-    "vite": "^7.1.7"
+    "vite": "^7.1.7",
+    "wrangler": "^4.158.0"
   }
 }
