@@ -120,7 +120,7 @@ if (!reducedMotion) {
 }
 
 
-/* Smooth AUREX VISUALS cursor-letter trail for background areas only. */
+/* Smooth, direction-aware AUREX VISUALS cursor-letter trail for background areas only. */
 const finePointer = window.matchMedia('(pointer: fine)').matches;
 
 if (!reducedMotion && finePointer) {
@@ -133,7 +133,7 @@ if (!reducedMotion && finePointer) {
     alpha: true,
     desynchronized: true
   });
-  const trailLetters = [...'AUREXVISUALS'];
+  const trailPhrase = [...'AUREXVISUALS'];
   const ignoredTrailTargets = [
     'a',
     'button',
@@ -166,9 +166,14 @@ if (!reducedMotion && finePointer) {
   ].join(',');
 
   const particles = [];
-  let letterIndex = 0;
+  let phraseIndex = 0;
+  let phraseStep = 1;
   let anchorX = Number.NaN;
   let anchorY = Number.NaN;
+  let directionX = 0;
+  let directionY = 0;
+  let nextSpacing = 22;
+  let lastMoveAt = 0;
   let trailFrame = 0;
   let viewportWidth = window.innerWidth;
   let viewportHeight = window.innerHeight;
@@ -201,7 +206,7 @@ if (!reducedMotion && finePointer) {
       }
 
       const reveal = Math.min(progress / 0.16, 1);
-      const fade = progress < 0.48 ? 1 : 1 - ((progress - 0.48) / 0.52);
+      const fade = progress < 0.5 ? 1 : 1 - ((progress - 0.5) / 0.5);
       const alpha = Math.max(0, reveal * fade * fade);
       const scale = 0.82 + Math.min(progress / 0.22, 1) * 0.18;
       const rise = particle.rise * progress;
@@ -224,27 +229,59 @@ if (!reducedMotion && finePointer) {
     if (!trailFrame) trailFrame = requestAnimationFrame(drawTrail);
   };
 
+  const shortenExistingTrail = (time) => {
+    particles.forEach((particle) => {
+      const age = time - particle.createdAt;
+      particle.life = Math.min(particle.life, age + 210);
+    });
+  };
+
+  const beginStroke = (unitX, unitY, time) => {
+    directionX = unitX;
+    directionY = unitY;
+    const conventionalDirection = Math.abs(unitX) >= Math.abs(unitY) ? unitX : unitY;
+    phraseStep = conventionalDirection >= 0 ? 1 : -1;
+    phraseIndex = phraseStep === 1 ? 0 : trailPhrase.length - 1;
+    nextSpacing = 22;
+    shortenExistingTrail(time);
+  };
+
   const createLetter = (x, y) => {
-    const offset = Math.sin(letterIndex * 1.7) * 2.4;
+    const emittedIndex = phraseIndex;
+    const offset = Math.sin(emittedIndex * 1.7) * 2.2;
 
     particles.push({
-      letter: trailLetters[letterIndex],
+      letter: trailPhrase[emittedIndex],
       x: x + offset,
-      y: y + Math.cos(letterIndex * 1.3) * 2,
+      y: y + Math.cos(emittedIndex * 1.3) * 1.8,
       createdAt: performance.now(),
-      life: 920,
-      rise: 11 + (letterIndex % 3)
+      life: 980,
+      rise: 10 + (emittedIndex % 3)
     });
 
-    if (particles.length > 28) particles.shift();
-    letterIndex = (letterIndex + 1) % trailLetters.length;
+    if (particles.length > 30) particles.shift();
+
+    phraseIndex += phraseStep;
+    const wrapped = phraseIndex < 0 || phraseIndex >= trailPhrase.length;
+    const crossedWordBreak = (
+      (phraseStep === 1 && emittedIndex === 4) ||
+      (phraseStep === -1 && emittedIndex === 5)
+    );
+
+    if (wrapped) phraseIndex = phraseStep === 1 ? 0 : trailPhrase.length - 1;
     startTrailFrame();
-    return letterIndex === 5 ? 34 : 22;
+
+    if (wrapped) return 52;
+    if (crossedWordBreak) return 38;
+    return 22;
   };
 
   const resetTrailAnchor = (x, y) => {
     anchorX = x;
     anchorY = y;
+    directionX = 0;
+    directionY = 0;
+    lastMoveAt = 0;
   };
 
   window.addEventListener('pointermove', (event) => {
@@ -262,14 +299,35 @@ if (!reducedMotion && finePointer) {
     let deltaX = event.clientX - anchorX;
     let deltaY = event.clientY - anchorY;
     let distance = Math.hypot(deltaX, deltaY);
-    let spacing = letterIndex === 5 ? 34 : 22;
+    const now = performance.now();
+
+    if (distance < 2) return;
+
+    const unitX = deltaX / distance;
+    const unitY = deltaY / distance;
+    const resumedAfterPause = now - lastMoveAt > 180;
+    const reversedDirection = directionX || directionY
+      ? unitX * directionX + unitY * directionY < -0.28
+      : false;
+
+    if (!directionX && !directionY || resumedAfterPause || reversedDirection) {
+      beginStroke(unitX, unitY, now);
+    } else {
+      const blendedX = directionX * 0.84 + unitX * 0.16;
+      const blendedY = directionY * 0.84 + unitY * 0.16;
+      const blendedLength = Math.hypot(blendedX, blendedY) || 1;
+      directionX = blendedX / blendedLength;
+      directionY = blendedY / blendedLength;
+    }
+
+    lastMoveAt = now;
     let emitted = 0;
 
-    while (distance >= spacing && emitted < 4) {
-      const ratio = spacing / distance;
+    while (distance >= nextSpacing && emitted < 4) {
+      const ratio = nextSpacing / distance;
       anchorX += deltaX * ratio;
       anchorY += deltaY * ratio;
-      spacing = createLetter(anchorX, anchorY);
+      nextSpacing = createLetter(anchorX, anchorY);
       emitted += 1;
       deltaX = event.clientX - anchorX;
       deltaY = event.clientY - anchorY;
@@ -280,6 +338,8 @@ if (!reducedMotion && finePointer) {
   window.addEventListener('pointerleave', () => {
     anchorX = Number.NaN;
     anchorY = Number.NaN;
+    directionX = 0;
+    directionY = 0;
   }, { passive: true });
 
   resizeTrail();
